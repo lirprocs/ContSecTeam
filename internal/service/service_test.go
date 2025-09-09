@@ -52,7 +52,7 @@ func TestService_EnqueueQueueOverflow(t *testing.T) {
 
 func TestService_StopPreventsSubmit(t *testing.T) {
 	s := NewService(1)
-	s.Start(context.Background(), 0)
+	s.Start(context.Background(), 1)
 	s.Stop()
 
 	err := s.Enqueue(&model.Task{ID: "t1"})
