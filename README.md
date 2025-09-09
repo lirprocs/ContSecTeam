@@ -1,4 +1,4 @@
-# ContSecTeam Queue Service
+# ContSecTeam Queue Service [![Test](https://github.com/lirprocs/ContSecTeam/actions/workflows/test.yaml/badge.svg)](https://github.com/lirprocs/ContSecTeam/actions/workflows/test.yaml)
 ## Требования
 - Go 1.24.0
 - Без внешних зависимостей
