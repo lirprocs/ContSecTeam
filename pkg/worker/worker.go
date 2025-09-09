@@ -1,0 +1,91 @@
+package worker
+
+import (
+	"errors"
+	"sync"
+)
+
+var (
+	ErrPoolStopped   = errors.New("pool is stopped")
+	ErrQueueOverflow = errors.New("task queue overflow")
+)
+
+type Pool interface {
+	Submit(task func()) error
+	Stop() error
+}
+
+type workerPool struct {
+	tasks    chan func()
+	wg       sync.WaitGroup
+	stopOnce sync.Once
+	stopCh   chan struct{}
+	stopped  bool
+	mu       sync.Mutex
+}
+
+func NewWorkerPool(queueSize, numberOfWorkers int) Pool {
+	if numberOfWorkers <= 0 {
+		panic("numberOfWorkers must be > 0")
+	}
+	if queueSize <= 0 {
+		panic("queueSize must be > 0")
+	}
+	wp := &workerPool{
+		tasks:  make(chan func(), queueSize),
+		stopCh: make(chan struct{}),
+	}
+
+	for i := 0; i < numberOfWorkers; i++ {
+		go wp.worker()
+	}
+
+	return wp
+}
+
+func (wp *workerPool) worker() {
+	for {
+		select {
+		case task, ok := <-wp.tasks:
+			if !ok {
+				return
+			}
+			task()
+			wp.wg.Done()
+		}
+	}
+}
+
+func (wp *workerPool) Submit(task func()) error {
+	wp.mu.Lock()
+	if wp.stopped {
+		wp.mu.Unlock()
+		return ErrPoolStopped
+	}
+	wp.mu.Unlock()
+
+	wp.wg.Add(1)
+	select {
+	case wp.tasks <- task:
+		return nil
+	case <-wp.stopCh:
+		wp.wg.Done()
+		return ErrPoolStopped
+	default:
+		wp.wg.Done()
+		return ErrQueueOverflow
+	}
+}
+
+func (wp *workerPool) Stop() error {
+	wp.stopOnce.Do(func() {
+		wp.mu.Lock()
+		wp.stopped = true
+		wp.mu.Unlock()
+
+		close(wp.stopCh)
+		close(wp.tasks)
+		wp.wg.Wait()
+	})
+	return nil
+}
